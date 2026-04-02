@@ -2,23 +2,6 @@
 
 #include "SerialComm.h"
 
-// 16채널 컨트롤 ID 범위 (리소스에 직접 정의)
-#define IDC_EDT_ONTIME_BASE     1100   // 1100~1115
-#define IDC_SPIN_ONTIME_BASE    1200   // 1200~1215
-#define IDC_CMB_MUL_BASE        1300   // 1300~1315
-
-// 일괄 설정 컨트롤
-#define IDC_EDT_ALL_ONTIME      1116
-#define IDC_CMB_ALL_MUL         1316
-#define IDC_BTN_APPLY_ALL_ONTIME 1400
-#define IDC_BTN_APPLY_ALL_MUL   1401
-
-// HOLD 설정 버튼
-#define IDC_BTN_SET_HOLD        1135
-
-// 장비 현재값 읽기전용 표시
-#define IDC_STC_DEV_ONTIME_BASE 1500   // 1500~1515
-#define IDC_STC_DEV_MUL_BASE    1520   // 1520~1535
 
 #define NUM_CHANNELS            16
 
@@ -44,15 +27,22 @@ private:
 	CSerialComm  m_serial;
 	CComboBox    m_cmbPort;
 
-	// Mode
-	int m_nCmdMode;  // 0=DS-16, 1=LS-12
-
 	// Log
 	CEdit m_edtLog;
 
+	// 읽기 상태
+	enum ReadState
+	{
+		READ_IDLE = 0,           // 대기
+		READ_DEVICE_DATA,        // :00R 응답 대기 (ON TIME + MaxPage + 반복 + Section)
+		READ_MULTIPLIER,         // :1RU 응답 대기 (배수)
+		READ_CUR_PAGE,           // :00G 응답 대기 (현재 페이지)
+		READ_PAGE_ONTIME,        // :00R 응답에서 특정 페이지만 읽기
+	};
+
 	// 수신 버퍼 & 읽기 상태
 	CString m_strRecvBuffer;
-	int m_nReadState;  // 0=IDLE, 1=WAITING_ONTIME, 2=WAITING_MULTIPLIER, 3=WAITING_PAGE, 4=WAITING_PAGE_ONTIME
+	ReadState m_nReadState;
 	int m_nPageLineCount;  // 페이지별 읽기 시 수신 라인 카운터
 
 	// 상태바
@@ -90,7 +80,6 @@ private:
 
 	afx_msg void OnBnClickedTrigger();
 	afx_msg void OnBnClickedReset();
-	afx_msg void OnBnClickedGetPage();
 	afx_msg void OnBnClickedSetStartPage();
 	afx_msg void OnBnClickedSetHold();
 
@@ -99,6 +88,9 @@ private:
 
 	afx_msg void OnBnClickedClearLog();
 	afx_msg void OnBnClickedDevReadPage();
+	afx_msg void OnBnClickedDevReadMul();
+	afx_msg void OnBnClickedSetMaxPage();
+	afx_msg void OnBnClickedGetCurPage();
 	afx_msg void OnBnClickedApplyAllOntime();
 	afx_msg void OnBnClickedApplyAllMul();
 
@@ -106,6 +98,7 @@ private:
 	afx_msg LRESULT OnAutoFindLog(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnAutoFindDone(WPARAM wParam, LPARAM lParam);
 	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnDestroy();
 
 	CBrush m_brTransparent;

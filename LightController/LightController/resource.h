@@ -41,6 +41,9 @@
 #define IDC_BTN_SET_START_PAGE          1035
 #define IDC_CHK_HOLD                    1036
 
+// HOLD
+#define IDC_BTN_SET_HOLD                1135
+
 // Page Section
 #define IDC_CHK_SECTION                 1040
 #define IDC_EDT_SECTION_START           1041
@@ -59,6 +62,17 @@
 #define IDC_EDT_LOG                     1060
 #define IDC_BTN_CLEAR_LOG               1061
 
+// 16CH 채널 컨트롤 (범위 ID)
+#define IDC_EDT_ONTIME_BASE             1100    // 1100~1115
+#define IDC_SPIN_ONTIME_BASE            1200    // 1200~1215
+#define IDC_CMB_MUL_BASE                1300    // 1300~1315
+
+// 일괄 적용
+#define IDC_EDT_ALL_ONTIME              1116
+#define IDC_CMB_ALL_MUL                 1316
+#define IDC_BTN_APPLY_ALL_ONTIME        1400
+#define IDC_BTN_APPLY_ALL_MUL           1401
+
 // Status Bar
 #define IDC_STC_STATUSBAR               1070
 
@@ -73,6 +87,12 @@
 #define IDC_BTN_DEV_READ_PAGE           1544
 #define IDC_STC_DEV_PAGE_LABEL          1545
 // Device Non-Queryable Values (설정 전송 시 반영)
+#define IDC_BTN_DEV_READ_MUL            1548
+#define IDC_BTN_SET_MAXPAGE             1549
+
+#define IDC_STC_DEV_REPEAT              1547
+#define IDC_BTN_GET_CURPAGE             1557
+
 #define IDC_STC_NQ_MAXPAGE              1550
 #define IDC_STC_NQ_START_PAGE           1551
 #define IDC_STC_NQ_HOLD                 1552

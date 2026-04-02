@@ -13,9 +13,8 @@
 
 CLightControllerDlg::CLightControllerDlg(CWnd* pParent /*=nullptr*/)
 	: CBCGPDialog(IDD_LIGHTCONTROLLER_DIALOG, pParent)
-	, m_nCmdMode(0)
 	, m_bAutoFinding(FALSE)
-	, m_nReadState(0)
+	, m_nReadState(READ_IDLE)
 	, m_nReadTargetPage(-1)
 	, m_nPageLineCount(0)
 {
@@ -27,7 +26,6 @@ void CLightControllerDlg::DoDataExchange(CDataExchange* pDX)
 	CBCGPDialog::DoDataExchange(pDX);
 	DDX_Control(pDX, IDC_CMB_PORT, m_cmbPort);
 	DDX_Control(pDX, IDC_EDT_LOG, m_edtLog);
-	DDX_Radio(pDX, IDC_RADIO_DS16, m_nCmdMode);
 }
 
 BEGIN_MESSAGE_MAP(CLightControllerDlg, CBCGPDialog)
@@ -42,19 +40,22 @@ BEGIN_MESSAGE_MAP(CLightControllerDlg, CBCGPDialog)
 	ON_BN_CLICKED(IDC_BTN_READ_MUL, &CLightControllerDlg::OnBnClickedReadMul)
 	ON_BN_CLICKED(IDC_BTN_TRIGGER, &CLightControllerDlg::OnBnClickedTrigger)
 	ON_BN_CLICKED(IDC_BTN_RESET, &CLightControllerDlg::OnBnClickedReset)
-	ON_BN_CLICKED(IDC_BTN_GET_PAGE, &CLightControllerDlg::OnBnClickedGetPage)
 	ON_BN_CLICKED(IDC_BTN_SET_START_PAGE, &CLightControllerDlg::OnBnClickedSetStartPage)
 	ON_BN_CLICKED(IDC_BTN_SET_HOLD, &CLightControllerDlg::OnBnClickedSetHold)
 	ON_BN_CLICKED(IDC_BTN_SET_SECTION, &CLightControllerDlg::OnBnClickedSetSection)
 	ON_BN_CLICKED(IDC_BTN_SET_SKIP, &CLightControllerDlg::OnBnClickedSetSkip)
 	ON_BN_CLICKED(IDC_BTN_CLEAR_LOG, &CLightControllerDlg::OnBnClickedClearLog)
 	ON_BN_CLICKED(IDC_BTN_DEV_READ_PAGE, &CLightControllerDlg::OnBnClickedDevReadPage)
+	ON_BN_CLICKED(IDC_BTN_DEV_READ_MUL, &CLightControllerDlg::OnBnClickedDevReadMul)
+	ON_BN_CLICKED(IDC_BTN_SET_MAXPAGE, &CLightControllerDlg::OnBnClickedSetMaxPage)
+	ON_BN_CLICKED(IDC_BTN_GET_CURPAGE, &CLightControllerDlg::OnBnClickedGetCurPage)
 	ON_BN_CLICKED(IDC_BTN_APPLY_ALL_ONTIME, &CLightControllerDlg::OnBnClickedApplyAllOntime)
 	ON_BN_CLICKED(IDC_BTN_APPLY_ALL_MUL, &CLightControllerDlg::OnBnClickedApplyAllMul)
 	ON_MESSAGE(WM_SERIAL_RECEIVE, &CLightControllerDlg::OnSerialReceive)
 	ON_MESSAGE(WM_AUTOFIND_LOG, &CLightControllerDlg::OnAutoFindLog)
 	ON_MESSAGE(WM_AUTOFIND_DONE, &CLightControllerDlg::OnAutoFindDone)
 	ON_WM_CTLCOLOR()
+	ON_WM_TIMER()
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -69,6 +70,28 @@ BOOL CLightControllerDlg::OnInitDialog()
 	EnableVisualManagerStyle(TRUE, TRUE);
 	m_brTransparent.CreateStockObject(HOLLOW_BRUSH);
 
+	// 색상 커스텀이 필요한 Static 컨트롤은 BCG 비주얼 매니저 해제
+	auto DisableBCG = [this](UINT nID) {
+		CWnd* pWnd = GetDlgItem(nID);
+		if (pWnd) {
+			CBCGPStatic* pStatic = DYNAMIC_DOWNCAST(CBCGPStatic, pWnd);
+			if (pStatic) pStatic->m_bVisualManagerStyle = FALSE;
+		}
+	};
+	for (int i = 0; i < 16; i++) {
+		DisableBCG(IDC_STC_DEV_ONTIME_BASE + i);
+		DisableBCG(IDC_STC_DEV_MUL_BASE + i);
+	}
+	DisableBCG(IDC_STC_DEV_CURPAGE);
+	DisableBCG(IDC_STC_DEV_REPEAT);
+	DisableBCG(IDC_STC_NQ_MAXPAGE);
+	DisableBCG(IDC_STC_NQ_START_PAGE);
+	DisableBCG(IDC_STC_NQ_HOLD);
+	DisableBCG(IDC_STC_NQ_SECTION);
+	DisableBCG(IDC_STC_NQ_SECTION_RANGE);
+	DisableBCG(IDC_STC_NQ_SKIP);
+	DisableBCG(IDC_STC_NQ_SKIP_TIME);
+
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
 
@@ -79,9 +102,6 @@ BOOL CLightControllerDlg::OnInitDialog()
 	m_serial.SetOwner(GetSafeHwnd());
 
 	// Default radio: DS-16
-	m_nCmdMode = 0;
-	UpdateData(FALSE);
-
 	// Spin controls range setup
 	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_MAXPAGE))->SetRange32(1, 99);
 	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_MAXPAGE))->SetPos32(1);
@@ -227,7 +247,7 @@ void CLightControllerDlg::OnBnClickedDisconnect()
 	m_serial.Close();
 	m_strConnPort.Empty();
 	m_strLastReadTime.Empty();
-	m_nReadState = 0;
+	m_nReadState = READ_IDLE;
 	SetDlgItemText(IDC_STC_STATUS, _T("미연결"));
 	AddLog(_T("[SYS] 연결 해제됨"));
 	UpdateUIState();
@@ -293,7 +313,7 @@ void CLightControllerDlg::OnBnClickedAutoFind()
 
 	m_bAutoFinding = TRUE;
 	GetDlgItem(IDC_BTN_AUTO_FIND)->EnableWindow(FALSE);
-	AddLog(_T("[SYS] 장비 자동 검색 시작..."));
+	AddLog(_T("[SYS] 조명컨트롤 자동 검색 시작..."));
 
 	CreateThread(NULL, 0, AutoFindThreadProc, pParam, 0, NULL);
 }
@@ -342,7 +362,7 @@ DWORD WINAPI CLightControllerDlg::AutoFindThreadProc(LPVOID lpParam)
 					bFound = TRUE;
 					break;
 				}
-				// 숫자 응답도 장비 발견으로 간주 (현재 페이지 번호가 올 수 있음)
+				// 숫자 응답도 조명컨트롤 발견으로 간주 (현재 페이지 번호가 올 수 있음)
 				if (buffer[j] >= '0' && buffer[j] <= '9')
 				{
 					bFound = TRUE;
@@ -357,7 +377,7 @@ DWORD WINAPI CLightControllerDlg::AutoFindThreadProc(LPVOID lpParam)
 		{
 			strFoundPort = strPort;
 			CString* pLog3 = new CString;
-			pLog3->Format(_T("[SYS] %s 에서 IMS-DS-16 장비 발견!"), strPort);
+			pLog3->Format(_T("[SYS] %s 에서 IMS-DS-16 조명컨트롤 발견!"), strPort);
 			if (!::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog3))
 				delete pLog3;
 			break;
@@ -408,23 +428,14 @@ void CLightControllerDlg::OnBnClickedSendAll()
 	for (int i = 0; i < NUM_CHANNELS; i++)
 		arrValue[i] = GetDlgItemInt(IDC_EDT_ONTIME_BASE + i);
 
-	CString strCmd;
-	if (m_nCmdMode == 0)  // DS-16
-	{
-		int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
-		int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
-		int nRepeat = GetDlgItemInt(IDC_EDT_REPEAT);
-		strCmd = CProtocolBuilder::BuildSetOnTime(nMaxPage, nPage, nRepeat, arrValue);
+	int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
+	int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
+	int nRepeat = GetDlgItemInt(IDC_EDT_REPEAT);
+	CString strCmd = CProtocolBuilder::BuildSetOnTime(nMaxPage, nPage, nRepeat, arrValue);
 
-		CString strVal;
-		strVal.Format(_T("%d"), nMaxPage);
-		SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
-	}
-	else  // LS-12
-	{
-		int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
-		strCmd = CProtocolBuilder::BuildSetValue(nPage, arrValue);
-	}
+	CString strVal;
+	strVal.Format(_T("%d"), nMaxPage);
+	SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
 
 	SendCommand(strCmd);
 }
@@ -448,11 +459,7 @@ void CLightControllerDlg::OnBnClickedSaveData()
 
 void CLightControllerDlg::OnBnClickedReadData()
 {
-	UpdateData(TRUE);
-	if (m_nCmdMode == 0)
-		SendCommand(CProtocolBuilder::BuildReadData());
-	else
-		SendCommand(CProtocolBuilder::BuildReadOntime());
+	SendCommand(CProtocolBuilder::BuildReadData());
 }
 
 void CLightControllerDlg::OnBnClickedReadMul()
@@ -472,11 +479,6 @@ void CLightControllerDlg::OnBnClickedTrigger()
 void CLightControllerDlg::OnBnClickedReset()
 {
 	SendCommand(CProtocolBuilder::BuildPageReset());
-}
-
-void CLightControllerDlg::OnBnClickedGetPage()
-{
-	SendCommand(CProtocolBuilder::BuildGetCurrentPage());
 }
 
 void CLightControllerDlg::OnBnClickedSetStartPage()
@@ -571,7 +573,7 @@ LRESULT CLightControllerDlg::OnSerialReceive(WPARAM wParam, LPARAM lParam)
 		else if (CProtocolBuilder::IsNAK(pData[i]))
 		{
 			AddLog(_T("[RX] NAK (0x15) - 비정상 수신"));
-			m_nReadState = 0;  // 오류 시 상태 초기화
+			m_nReadState = READ_IDLE;  // 오류 시 상태 초기화
 		}
 		else if (pData[i] == 0x0A)  // LF → 한 줄 완성
 		{
@@ -628,7 +630,7 @@ void CLightControllerDlg::OnBnClickedDevReadPage()
 		AfxMessageBox(_T("시리얼 포트가 연결되지 않았습니다."));
 		return;
 	}
-	if (m_nReadState != 0)
+	if (m_nReadState != READ_IDLE)
 	{
 		AfxMessageBox(_T("이전 읽기가 진행 중입니다."));
 		return;
@@ -637,15 +639,74 @@ void CLightControllerDlg::OnBnClickedDevReadPage()
 	m_nReadTargetPage = GetDlgItemInt(IDC_EDT_DEV_PAGE);
 	m_strRecvBuffer.Empty();
 	m_nPageLineCount = 0;
-	m_nReadState = 4;  // WAITING_PAGE_ONTIME
+	m_nReadState = READ_PAGE_ONTIME;  // WAITING_PAGE_ONTIME
 
 	CString strLog;
-	strLog.Format(_T("[SYS] Page %d ON TIME 읽기 (:00R)..."), m_nReadTargetPage);
+	strLog.Format(_T("[SYS] Page %d ON TIME 읽기..."), m_nReadTargetPage);
 	AddLog(strLog);
 	UpdateStatusBar();
 
-	// :00R로 전체 페이지 데이터 요청, 응답에서 대상 페이지 라인만 파싱
+	// :00R로 전체 데이터 요청, 응답에서 대상 페이지만 파싱
 	SendCommand(CProtocolBuilder::BuildReadData());
+}
+
+void CLightControllerDlg::OnBnClickedSetMaxPage()
+{
+	if (!m_serial.IsOpen())
+	{
+		AfxMessageBox(_T("시리얼 포트가 연결되지 않았습니다."));
+		return;
+	}
+
+	int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
+	SendCommand(CProtocolBuilder::BuildSetMaxPage_LS12(nMaxPage));
+
+	CString strVal;
+	strVal.Format(_T("%d"), nMaxPage);
+	SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
+}
+
+void CLightControllerDlg::OnBnClickedGetCurPage()
+{
+	if (!m_serial.IsOpen())
+	{
+		AfxMessageBox(_T("시리얼 포트가 연결되지 않았습니다."));
+		return;
+	}
+	if (m_nReadState != READ_IDLE)
+	{
+		AfxMessageBox(_T("이전 읽기가 진행 중입니다."));
+		return;
+	}
+
+	m_strRecvBuffer.Empty();
+	m_nReadState = READ_CUR_PAGE;
+	AddLog(_T("[SYS] 현재 페이지 조회..."));
+	UpdateStatusBar();
+	SendCommand(CProtocolBuilder::BuildGetCurrentPage());  // :00G\r\n
+	SetTimer(102, 500, NULL);  // 500ms 후 버퍼 강제 처리
+}
+
+void CLightControllerDlg::OnBnClickedDevReadMul()
+{
+	if (!m_serial.IsOpen())
+	{
+		AfxMessageBox(_T("시리얼 포트가 연결되지 않았습니다."));
+		return;
+	}
+	if (m_nReadState != READ_IDLE)
+	{
+		AfxMessageBox(_T("이전 읽기가 진행 중입니다."));
+		return;
+	}
+
+	m_strRecvBuffer.Empty();
+	m_nReadTargetPage = -2;  // 수동 배수 읽기 표시
+	m_nReadState = READ_MULTIPLIER;
+	AddLog(_T("[SYS] 배수 값 읽기..."));
+	UpdateStatusBar();
+	SendCommand(CProtocolBuilder::BuildReadMultiplier());
+	SetTimer(101, 500, NULL);  // 500ms 후 버퍼 강제 처리
 }
 
 void CLightControllerDlg::OnBnClickedClearLog()
@@ -705,8 +766,8 @@ LRESULT CLightControllerDlg::OnAutoFindDone(WPARAM wParam, LPARAM lParam)
 	}
 	else
 	{
-		AddLog(_T("[SYS] 장비를 찾을 수 없습니다."));
-		AfxMessageBox(_T("IMS-DS-16 장비를 찾을 수 없습니다.\n케이블 연결 및 전원을 확인하세요."));
+		AddLog(_T("[SYS] 조명컨트롤를 찾을 수 없습니다."));
+		AfxMessageBox(_T("IMS-DS-16 조명컨트롤를 찾을 수 없습니다.\n케이블 연결 및 전원을 확인하세요."));
 	}
 
 	return 0;
@@ -725,13 +786,13 @@ void CLightControllerDlg::UpdateStatusBar()
 		int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
 		CString strRead = m_strLastReadTime.IsEmpty() ? _T("-") : m_strLastReadTime;
 		CString strState;
-		if (m_nReadState == 1)
-			strState = _T("ON TIME 읽는 중...");
-		else if (m_nReadState == 2)
+		if (m_nReadState == READ_DEVICE_DATA)
+			strState = _T("조명컨트롤 데이터 읽는 중...");
+		else if (m_nReadState == READ_MULTIPLIER)
 			strState = _T("배수 읽는 중...");
-		else if (m_nReadState == 3)
-			strState = _T("페이지 읽는 중...");
-		else if (m_nReadState == 4)
+		else if (m_nReadState == READ_CUR_PAGE)
+			strState = _T("현재 페이지 조회 중...");
+		else if (m_nReadState == READ_PAGE_ONTIME)
 			strState.Format(_T("Page %d 읽는 중..."), m_nReadTargetPage);
 		else
 			strState = _T("16CH OK");
@@ -764,7 +825,6 @@ void CLightControllerDlg::UpdateUIState()
 	//GetDlgItem(IDC_BTN_READ_MUL)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_TRIGGER)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_RESET)->EnableWindow(bConnected);
-	GetDlgItem(IDC_BTN_GET_PAGE)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SET_START_PAGE)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SET_HOLD)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SET_SECTION)->EnableWindow(bConnected);
@@ -782,46 +842,158 @@ void CLightControllerDlg::ReadDeviceParams()
 		return;
 
 	m_strRecvBuffer.Empty();
-	m_nReadState = 1;  // WAITING_ONTIME
-	AddLog(_T("[SYS] 장비 파라미터 읽기 시작..."));
+	m_nPageLineCount = 0;
+	m_nReadState = READ_DEVICE_DATA;  // WAITING_00R
+	AddLog(_T("[SYS] 조명컨트롤 파라미터 읽기 시작..."));
 	UpdateStatusBar();
-	SendCommand(CProtocolBuilder::BuildReadOntime());   // :1RA\r\n
+	SendCommand(CProtocolBuilder::BuildReadData());   // :00R\r\n
+}
+
+// :00R 응답의 "PAGE : NN = 000,...,000,RN" 파싱
+// 성공 시 nPage, arrValue[16], nRepeat 반환
+static BOOL Parse00RPageLine(const CString& strLine, int& nPage, int arrValue[], int& nRepeat)
+{
+	// "PAGE : 00 = 000,000,...,000,R1"
+	if (strLine.Left(4).CompareNoCase(_T("PAGE")) != 0)
+		return FALSE;
+
+	int nEq = strLine.Find(_T('='));
+	if (nEq < 0) return FALSE;
+
+	// 페이지 번호: "PAGE : 00" → ":"와 "=" 사이의 숫자
+	CString strPagePart = strLine.Mid(4, nEq - 4);
+	strPagePart.Replace(_T(':'), _T(' '));
+	strPagePart.Trim();
+	nPage = _ttoi(strPagePart);
+
+	// 데이터 부분: "000,000,...,000,R1"
+	CString strData = strLine.Mid(nEq + 1);
+	strData.Trim();
+
+	// 끝에서 반복 횟수 추출 ",R1" → nRepeat=1
+	nRepeat = 1;
+	int nR = strData.ReverseFind(_T('R'));
+	if (nR >= 0)
+	{
+		CString strRepeat = strData.Mid(nR + 1);
+		strRepeat.Trim();
+		if (!strRepeat.IsEmpty())
+			nRepeat = _ttoi(strRepeat);
+		// R 앞의 콤마도 제거
+		strData = strData.Left(nR);
+		strData.TrimRight(_T(", "));
+	}
+
+	// 콤마 구분 ON TIME 파싱
+	return CProtocolBuilder::ParseOntimeResponse(strData, arrValue);
+}
+
+// :1RA 응답의 "PageN:데이터" 형식 파싱
+static BOOL ParsePageLine(const CString& strLine, int& nPage, CString& strData)
+{
+	int nColon = strLine.Find(_T(':'));
+	if (nColon < 0) return FALSE;
+
+	CString strPrefix = strLine.Left(nColon);
+	strPrefix.Trim();
+
+	if (strPrefix.Left(4).CompareNoCase(_T("Page")) != 0)
+		return FALSE;
+
+	CString strPageNum = strPrefix.Mid(4);
+	if (strPageNum.IsEmpty()) return FALSE;
+
+	nPage = _ttoi(strPageNum);
+	strData = strLine.Mid(nColon + 1);
+	strData.Trim();
+	return TRUE;
 }
 
 void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 {
-	if (m_nReadState == 1)  // WAITING_ONTIME 응답
+	if (m_nReadState == READ_DEVICE_DATA)  // WAITING_00R — :00R 응답 (여러 줄)
 	{
-		int arrValue[NUM_CHANNELS] = { 0 };
-		if (CProtocolBuilder::ParseOntimeResponse(strLine, arrValue))
+		// --- MAX PAGE : N ---
+		if (strLine.Find(_T("MAX PAGE")) >= 0)
 		{
-			// 입력 UI에 반영
-			for (int i = 0; i < NUM_CHANNELS; i++)
-				SetDlgItemInt(IDC_EDT_ONTIME_BASE + i, arrValue[i]);
-
-			// 장비값 읽기전용 영역에 반영
-			for (int i = 0; i < NUM_CHANNELS; i++)
+			int nColon = strLine.Find(_T(':'));
+			if (nColon >= 0)
 			{
-				CString strVal;
-				strVal.Format(_T("%d"), arrValue[i]);
-				SetDlgItemText(IDC_STC_DEV_ONTIME_BASE + i, strVal);
+				CString strVal = strLine.Mid(nColon + 1);
+				strVal.Trim();
+				int nMaxPage = _ttoi(strVal);
+
+				SetDlgItemInt(IDC_EDT_MAXPAGE, nMaxPage);
+
+				strVal.Format(_T("%d"), nMaxPage);
+				SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
 			}
-
-			AddLog(_T("[SYS] ON TIME 값 읽기 완료"));
-
-			// 다음: 배수 읽기
-			m_nReadState = 2;  // WAITING_MULTIPLIER
-			UpdateStatusBar();
-			SendCommand(CProtocolBuilder::BuildReadMultiplier());  // :1RU\r\n
+			SetTimer(100, 300, NULL);
+			return;
 		}
-		// 숫자가 아닌 라인은 무시 (헤더 등), 계속 대기
+
+		// --- PAGE : NN = 000,...,000,RN ---
+		int nPage = -1, nRepeat = 1;
+		int arrValue[NUM_CHANNELS] = { 0 };
+		if (Parse00RPageLine(strLine, nPage, arrValue, nRepeat))
+		{
+			int nCurEditPage = GetDlgItemInt(IDC_EDT_CURPAGE);
+			if (nPage == nCurEditPage)
+			{
+				for (int i = 0; i < NUM_CHANNELS; i++)
+					SetDlgItemInt(IDC_EDT_ONTIME_BASE + i, arrValue[i]);
+				for (int i = 0; i < NUM_CHANNELS; i++)
+				{
+					CString strVal;
+					strVal.Format(_T("%d"), arrValue[i]);
+					SetDlgItemText(IDC_STC_DEV_ONTIME_BASE + i, strVal);
+				}
+
+				// 반복 횟수 표시
+				SetDlgItemInt(IDC_EDT_REPEAT, nRepeat);
+				CString strRepeat;
+				strRepeat.Format(_T("%d"), nRepeat);
+				SetDlgItemText(IDC_STC_DEV_REPEAT, strRepeat);
+			}
+			m_nPageLineCount = nPage;
+			SetTimer(100, 300, NULL);
+			return;
+		}
+
+		// --- Section Control:ON/OFF ---
+		if (strLine.Find(_T("Section Control")) >= 0)
+		{
+			CString strVal;
+			if (strLine.Find(_T("ON")) >= 0)
+				strVal = _T("ON");
+			else
+				strVal = _T("OFF");
+			SetDlgItemText(IDC_STC_NQ_SECTION, strVal);
+			SetTimer(100, 300, NULL);
+			return;
+		}
+
+		// --- Page:N~N (Section 범위) ---
+		if (strLine.Find(_T('~')) >= 0 && strLine.Left(4).CompareNoCase(_T("Page")) == 0)
+		{
+			int nColon = strLine.Find(_T(':'));
+			if (nColon >= 0)
+			{
+				CString strRange = strLine.Mid(nColon + 1);
+				strRange.Trim();
+				SetDlgItemText(IDC_STC_NQ_SECTION_RANGE, strRange);
+			}
+			SetTimer(100, 300, NULL);
+			return;
+		}
+
+		// 기타 라인은 무시, 타이머로 완료 감지
 	}
-	else if (m_nReadState == 2)  // WAITING_MULTIPLIER 응답
+	else if (m_nReadState == READ_MULTIPLIER)  // WAITING_MULTIPLIER 응답
 	{
 		int arrMul[NUM_CHANNELS];
 		if (CProtocolBuilder::ParseMultiplierResponse(strLine, arrMul))
 		{
-			// 입력 UI에 반영
 			for (int i = 0; i < NUM_CHANNELS; i++)
 			{
 				CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_CMB_MUL_BASE + i);
@@ -831,8 +1003,6 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 					pCombo->SetCurSel(nSel);
 				}
 			}
-
-			// 장비값 읽기전용 영역에 반영
 			for (int i = 0; i < NUM_CHANNELS; i++)
 			{
 				CString strVal;
@@ -840,17 +1010,15 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 				SetDlgItemText(IDC_STC_DEV_MUL_BASE + i, strVal);
 			}
 
+			KillTimer(101);
 			AddLog(_T("[SYS] 배수 값 읽기 완료"));
-
-			// 다음: 현재 페이지 읽기
-			m_nReadState = 3;  // WAITING_PAGE
+			m_nReadState = READ_IDLE;
+			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
 			UpdateStatusBar();
-			SendCommand(CProtocolBuilder::BuildGetCurrentPage());  // :00G\r\n
 		}
 	}
-	else if (m_nReadState == 3)  // WAITING_PAGE 응답
+	else if (m_nReadState == READ_CUR_PAGE)  // WAITING_PAGE — :00G 응답
 	{
-		// 응답에서 숫자 추출 (현재 페이지 번호)
 		CString strNum;
 		for (int i = 0; i < strLine.GetLength(); i++)
 		{
@@ -862,59 +1030,138 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 		{
 			int nPage = _ttoi(strNum);
 			CString strVal;
-
-			// 현재 Page 표시
 			strVal.Format(_T("%d"), nPage);
 			SetDlgItemText(IDC_STC_DEV_CURPAGE, strVal);
 
-			// Max Page → 조회불가 영역에 표시
-			int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
-			strVal.Format(_T("%d"), nMaxPage);
-			SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
-
-			AddLog(_T("[SYS] 페이지 정보 읽기 완료"));
-			m_nReadState = 0;  // IDLE
+			KillTimer(102);
+			AddLog(_T("[SYS] 현재 페이지 조회 완료"));
+			m_nReadState = READ_IDLE;
 			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
-			AddLog(_T("[SYS] 장비 파라미터 읽기 완료"));
 			UpdateStatusBar();
 		}
 	}
-	else if (m_nReadState == 4)  // WAITING_PAGE_ONTIME — :00R 응답 (여러 줄)
+	else if (m_nReadState == READ_PAGE_ONTIME)  // WAITING_PAGE_ONTIME — :00R 응답에서 특정 페이지만
 	{
-		// :00R 응답은 페이지 0부터 순서대로 한 줄씩 ON TIME 데이터가 옴
-		// 대상 페이지 라인만 파싱하여 장비값 영역에 표시
+		int nPage = -1, nRepeat = 1;
 		int arrValue[NUM_CHANNELS] = { 0 };
-		if (CProtocolBuilder::ParseOntimeResponse(strLine, arrValue))
+		if (Parse00RPageLine(strLine, nPage, arrValue, nRepeat))
 		{
-			if (m_nPageLineCount == m_nReadTargetPage)
+			SetTimer(100, 300, NULL);
+			if (nPage == m_nReadTargetPage)
 			{
-				// 대상 페이지 → 장비값 영역에 반영
+				KillTimer(100);
 				for (int i = 0; i < NUM_CHANNELS; i++)
 				{
 					CString strVal;
 					strVal.Format(_T("%d"), arrValue[i]);
 					SetDlgItemText(IDC_STC_DEV_ONTIME_BASE + i, strVal);
 				}
-				// 편집 UI에도 반영
 				for (int i = 0; i < NUM_CHANNELS; i++)
 					SetDlgItemInt(IDC_EDT_ONTIME_BASE + i, arrValue[i]);
+
+				SetDlgItemInt(IDC_EDT_REPEAT, nRepeat);
+				CString strRepeat;
+				strRepeat.Format(_T("%d"), nRepeat);
+				SetDlgItemText(IDC_STC_DEV_REPEAT, strRepeat);
 
 				CString strLog;
 				strLog.Format(_T("[SYS] Page %d ON TIME 읽기 완료"), m_nReadTargetPage);
 				AddLog(strLog);
 
-				m_nReadState = 0;  // IDLE
+				m_nReadState = READ_IDLE;
 				m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
 				UpdateStatusBar();
 			}
-			m_nPageLineCount++;
 		}
 	}
 	// m_nReadState == 0 (IDLE) → 일반 데이터, 로그에만 표시
 }
 
 // ============================================================
-// 컨트롤 색상 (장비정보 영역 컬러)
+// 타이머 (ON TIME 다중 페이지 수신 완료 감지)
+// ============================================================
+
+void CLightControllerDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == 100 && m_nReadState == READ_DEVICE_DATA)
+	{
+		// :00R 응답 수신 완료 → 다음: 배수 읽기
+		KillTimer(100);
+		AddLog(_T("[SYS] 조명컨트롤 데이터 읽기 완료"));
+
+		if (!m_strRecvBuffer.IsEmpty())
+		{
+			AddLog(_T("[RX*] ") + m_strRecvBuffer);
+			m_strRecvBuffer.Empty();
+		}
+		m_nReadState = READ_MULTIPLIER;
+		m_nPageLineCount = 0;
+		UpdateStatusBar();
+		SendCommand(CProtocolBuilder::BuildReadMultiplier());  // :1RU\r\n
+		SetTimer(101, 500, NULL);  // 500ms 후 버퍼 강제 처리
+	}
+	else if (nIDEvent == 101 && m_nReadState == READ_MULTIPLIER)
+	{
+		// :1RU 응답이 CRLF 없이 올 수 있음 → 버퍼 강제 파싱
+		KillTimer(101);
+		CString strLine = m_strRecvBuffer;
+		strLine.Trim();
+		m_strRecvBuffer.Empty();
+
+		if (!strLine.IsEmpty())
+		{
+			AddLog(_T("[RX*] ") + strLine);
+			ProcessReceivedLine(strLine);
+		}
+
+		// 그래도 READ_MULTIPLIER면 타임아웃 → 완료 처리
+		if (m_nReadState == READ_MULTIPLIER)
+		{
+			AddLog(_T("[SYS] 배수 응답 없음 — 건너뜀"));
+			m_nReadState = READ_IDLE;
+			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
+			AddLog(_T("[SYS] 조명컨트롤 파라미터 읽기 완료"));
+			UpdateStatusBar();
+		}
+	}
+	else if (nIDEvent == 102 && m_nReadState == READ_CUR_PAGE)
+	{
+		// :00G 응답이 CRLF 없이 올 수 있음 → 버퍼 강제 파싱
+		KillTimer(102);
+		CString strLine = m_strRecvBuffer;
+		strLine.Trim();
+		m_strRecvBuffer.Empty();
+
+		if (!strLine.IsEmpty())
+		{
+			AddLog(_T("[RX*] ") + strLine);
+			ProcessReceivedLine(strLine);
+		}
+
+		if (m_nReadState == READ_CUR_PAGE)
+		{
+			AddLog(_T("[SYS] 페이지 응답 없음 — 건너뜀"));
+			m_nReadState = READ_IDLE;
+			UpdateStatusBar();
+		}
+	}
+	else if (nIDEvent == 100 && m_nReadState == READ_PAGE_ONTIME)
+	{
+		KillTimer(100);
+		AddLog(_T("[SYS] 대상 페이지를 찾지 못했습니다."));
+		m_nReadState = READ_IDLE;
+		UpdateStatusBar();
+	}
+	else
+	{
+		KillTimer(nIDEvent);
+	}
+
+	CBCGPDialog::OnTimer(nIDEvent);
+}
+
+// ============================================================
+// 컨트롤 색상 (조명컨트롤정보 영역 컬러)
 // ============================================================
 
 HBRUSH CLightControllerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
@@ -925,7 +1172,7 @@ HBRUSH CLightControllerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 	{
 		UINT nID = pWnd->GetDlgCtrlID();
 
-		// 장비 ON TIME 값 (조회 가능) — 밝은 시안
+		// 조명컨트롤 ON TIME 값 (조회 가능) — 밝은 시안
 		if (nID >= IDC_STC_DEV_ONTIME_BASE && nID <= IDC_STC_DEV_ONTIME_BASE + 15)
 		{
 			pDC->SetTextColor(RGB(0, 200, 255));
@@ -933,7 +1180,7 @@ HBRUSH CLightControllerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 			return (HBRUSH)m_brTransparent;
 		}
 
-		// 장비 배수 값 (조회 가능) — 주황
+		// 조명컨트롤 배수 값 (조회 가능) — 주황
 		if (nID >= IDC_STC_DEV_MUL_BASE && nID <= IDC_STC_DEV_MUL_BASE + 15)
 		{
 			pDC->SetTextColor(RGB(255, 160, 0));
@@ -949,8 +1196,18 @@ HBRUSH CLightControllerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 			return (HBRUSH)m_brTransparent;
 		}
 
-		// 조회 불가 영역 값 — 노랑
-		if (nID >= IDC_STC_NQ_MAXPAGE && nID <= IDC_STC_NQ_SKIP_TIME)
+		// 조회 가능 설정값 (Max Page, 반복, Section, Section 범위) — 밝은 녹색
+		if (nID == IDC_STC_NQ_MAXPAGE || nID == IDC_STC_DEV_REPEAT ||
+			nID == IDC_STC_NQ_SECTION || nID == IDC_STC_NQ_SECTION_RANGE)
+		{
+			pDC->SetTextColor(RGB(80, 220, 80));
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)m_brTransparent;
+		}
+
+		// 조회 불가 설정값 (시작Page, HOLD, Skip) — 노랑
+		if (nID == IDC_STC_NQ_START_PAGE || nID == IDC_STC_NQ_HOLD ||
+			nID == IDC_STC_NQ_SKIP || nID == IDC_STC_NQ_SKIP_TIME)
 		{
 			pDC->SetTextColor(RGB(255, 215, 0));
 			pDC->SetBkMode(TRANSPARENT);
