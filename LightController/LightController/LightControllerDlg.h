@@ -105,5 +105,8 @@ private:
 	afx_msg LRESULT OnSerialReceive(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnAutoFindLog(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnAutoFindDone(WPARAM wParam, LPARAM lParam);
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
 	afx_msg void OnDestroy();
+
+	CBrush m_brTransparent;
 };

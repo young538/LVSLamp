@@ -54,6 +54,7 @@ BEGIN_MESSAGE_MAP(CLightControllerDlg, CBCGPDialog)
 	ON_MESSAGE(WM_SERIAL_RECEIVE, &CLightControllerDlg::OnSerialReceive)
 	ON_MESSAGE(WM_AUTOFIND_LOG, &CLightControllerDlg::OnAutoFindLog)
 	ON_MESSAGE(WM_AUTOFIND_DONE, &CLightControllerDlg::OnAutoFindDone)
+	ON_WM_CTLCOLOR()
 	ON_WM_DESTROY()
 END_MESSAGE_MAP()
 
@@ -66,6 +67,7 @@ BOOL CLightControllerDlg::OnInitDialog()
 	CBCGPDialog::OnInitDialog();
 
 	EnableVisualManagerStyle(TRUE, TRUE);
+	m_brTransparent.CreateStockObject(HOLLOW_BRUSH);
 
 	SetIcon(m_hIcon, TRUE);
 	SetIcon(m_hIcon, FALSE);
@@ -909,6 +911,54 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 		}
 	}
 	// m_nReadState == 0 (IDLE) → 일반 데이터, 로그에만 표시
+}
+
+// ============================================================
+// 컨트롤 색상 (장비정보 영역 컬러)
+// ============================================================
+
+HBRUSH CLightControllerDlg::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
+{
+	HBRUSH hbr = CBCGPDialog::OnCtlColor(pDC, pWnd, nCtlColor);
+
+	if (nCtlColor == CTLCOLOR_STATIC)
+	{
+		UINT nID = pWnd->GetDlgCtrlID();
+
+		// 장비 ON TIME 값 (조회 가능) — 밝은 시안
+		if (nID >= IDC_STC_DEV_ONTIME_BASE && nID <= IDC_STC_DEV_ONTIME_BASE + 15)
+		{
+			pDC->SetTextColor(RGB(0, 200, 255));
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)m_brTransparent;
+		}
+
+		// 장비 배수 값 (조회 가능) — 주황
+		if (nID >= IDC_STC_DEV_MUL_BASE && nID <= IDC_STC_DEV_MUL_BASE + 15)
+		{
+			pDC->SetTextColor(RGB(255, 160, 0));
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)m_brTransparent;
+		}
+
+		// 현재 페이지 (조회 가능) — 밝은 녹색
+		if (nID == IDC_STC_DEV_CURPAGE)
+		{
+			pDC->SetTextColor(RGB(80, 220, 80));
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)m_brTransparent;
+		}
+
+		// 조회 불가 영역 값 — 노랑
+		if (nID >= IDC_STC_NQ_MAXPAGE && nID <= IDC_STC_NQ_SKIP_TIME)
+		{
+			pDC->SetTextColor(RGB(255, 215, 0));
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)m_brTransparent;
+		}
+	}
+
+	return hbr;
 }
 
 void CLightControllerDlg::OnDestroy()
