@@ -28,4 +28,8 @@ public:
 	// === 응답 파싱 ===
 	static BOOL IsACK(BYTE bData);
 	static BOOL IsNAK(BYTE bData);
+
+	// 데이터 응답 파싱 (콤마 구분 숫자 → 배열)
+	static BOOL ParseOntimeResponse(const CString& strLine, int arrValue[16]);
+	static BOOL ParseMultiplierResponse(const CString& strLine, int arrMul[16]);
 };

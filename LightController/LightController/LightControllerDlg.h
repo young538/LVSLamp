@@ -16,6 +16,10 @@
 // HOLD 설정 버튼
 #define IDC_BTN_SET_HOLD        1135
 
+// 장비 현재값 읽기전용 표시
+#define IDC_STC_DEV_ONTIME_BASE 1500   // 1500~1515
+#define IDC_STC_DEV_MUL_BASE    1520   // 1520~1535
+
 #define NUM_CHANNELS            16
 
 class CLightControllerDlg : public CBCGPDialog
@@ -46,12 +50,27 @@ private:
 	// Log
 	CEdit m_edtLog;
 
+	// 수신 버퍼 & 읽기 상태
+	CString m_strRecvBuffer;
+	int m_nReadState;  // 0=IDLE, 1=WAITING_ONTIME, 2=WAITING_MULTIPLIER, 3=WAITING_PAGE, 4=WAITING_PAGE_ONTIME
+	int m_nPageLineCount;  // 페이지별 읽기 시 수신 라인 카운터
+
+	// 상태바
+	CString m_strConnPort;     // 연결된 포트명
+	CString m_strLastReadTime; // 마지막 읽기 시각
+
+	// 페이지별 읽기
+	int m_nReadTargetPage;     // 읽기 대상 페이지 번호
+
 	// Helpers
 	void EnumerateComPorts();
 	void SendCommand(const CString& strCmd);
 	void AddLog(const CString& strMsg);
 	void UpdateUIState();
 	void InitChannelControls();
+	void ReadDeviceParams();
+	void ProcessReceivedLine(const CString& strLine);
+	void UpdateStatusBar();
 
 	// Button handlers
 	afx_msg void OnBnClickedConnect();
@@ -79,6 +98,7 @@ private:
 	afx_msg void OnBnClickedSetSkip();
 
 	afx_msg void OnBnClickedClearLog();
+	afx_msg void OnBnClickedDevReadPage();
 	afx_msg void OnBnClickedApplyAllOntime();
 	afx_msg void OnBnClickedApplyAllMul();
 

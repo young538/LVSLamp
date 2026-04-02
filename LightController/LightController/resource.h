@@ -59,6 +59,22 @@
 #define IDC_EDT_LOG                     1060
 #define IDC_BTN_CLEAR_LOG               1061
 
+// Status Bar
+#define IDC_STC_STATUSBAR               1070
+
+// Device Current Value (Read-Only Display)
+// ON TIME: 1500~1515, Multiplier: 1520~1535
+#define IDC_STC_DEV_ONTIME_BASE         1500
+#define IDC_STC_DEV_MUL_BASE            1520
+#define IDC_STC_DEV_MAXPAGE             1540
+#define IDC_STC_DEV_CURPAGE             1541
+#define IDC_EDT_DEV_PAGE                1542
+#define IDC_SPIN_DEV_PAGE               1543
+#define IDC_BTN_DEV_READ_PAGE           1544
+#define IDC_STC_DEV_PAGE_LABEL          1545
+#define IDC_STC_DEV_SKIP_STATUS         1546
+#define IDC_STC_DEV_SKIP_TIME           1547
+
 // Next default values for new objects
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS

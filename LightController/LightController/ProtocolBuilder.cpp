@@ -187,3 +187,91 @@ BOOL CProtocolBuilder::IsNAK(BYTE bData)
 {
 	return (bData == 0x15);
 }
+
+// 콤마 구분 숫자 문자열에서 최대 16개 값을 추출하는 헬퍼
+static int ParseCommaSeparatedValues(const CString& strData, int arrOut[], int nMaxCount)
+{
+	int nCount = 0;
+	int nPos = 0;
+	CString strToken;
+	CString strWork = strData;
+	strWork.Trim();
+
+	while (nCount < nMaxCount)
+	{
+		nPos = strWork.Find(_T(','));
+		if (nPos >= 0)
+		{
+			strToken = strWork.Left(nPos);
+			strWork = strWork.Mid(nPos + 1);
+		}
+		else
+		{
+			strToken = strWork;
+			strWork.Empty();
+		}
+
+		strToken.Trim();
+		if (strToken.IsEmpty() && strWork.IsEmpty())
+			break;
+
+		arrOut[nCount++] = _ttoi(strToken);
+
+		if (nPos < 0)
+			break;
+	}
+	return nCount;
+}
+
+// OnTime 응답 파싱: "255,000,100,..." → int[16]
+BOOL CProtocolBuilder::ParseOntimeResponse(const CString& strLine, int arrValue[16])
+{
+	memset(arrValue, 0, sizeof(int) * 16);
+
+	// 응답에서 숫자,콤마 부분만 추출 (앞에 헤더가 있을 수 있음)
+	CString strData = strLine;
+	// ':' 이후의 데이터에서 첫 번째 숫자 위치 찾기
+	int nStart = -1;
+	for (int i = 0; i < strData.GetLength(); i++)
+	{
+		TCHAR ch = strData[i];
+		if (ch >= '0' && ch <= '9')
+		{
+			nStart = i;
+			break;
+		}
+	}
+	if (nStart < 0)
+		return FALSE;
+
+	strData = strData.Mid(nStart);
+
+	int nCount = ParseCommaSeparatedValues(strData, arrValue, 16);
+	return (nCount >= 1);
+}
+
+// 배수 응답 파싱: "5,1,1,..." → int[16]
+BOOL CProtocolBuilder::ParseMultiplierResponse(const CString& strLine, int arrMul[16])
+{
+	for (int i = 0; i < 16; i++)
+		arrMul[i] = 1;
+
+	CString strData = strLine;
+	int nStart = -1;
+	for (int i = 0; i < strData.GetLength(); i++)
+	{
+		TCHAR ch = strData[i];
+		if (ch >= '0' && ch <= '9')
+		{
+			nStart = i;
+			break;
+		}
+	}
+	if (nStart < 0)
+		return FALSE;
+
+	strData = strData.Mid(nStart);
+
+	int nCount = ParseCommaSeparatedValues(strData, arrMul, 16);
+	return (nCount >= 1);
+}

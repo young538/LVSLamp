@@ -24,7 +24,7 @@ public:
 private:
 	HANDLE  m_hComm;
 	HANDLE  m_hThread;
-	BOOL    m_bRunning;
+	HANDLE  m_hStopEvent;    // 스레드 종료 이벤트
 	HWND    m_hOwner;
 	UINT    m_nMsgID;
 

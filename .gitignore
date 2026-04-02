@@ -36,3 +36,9 @@ ipch/
 *.bak
 *.tmp
 ~$*
+
+# Resource editor
+*.aps
+
+# Screenshots (temp)
+screenshot_*.png

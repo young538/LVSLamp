@@ -15,6 +15,9 @@ CLightControllerDlg::CLightControllerDlg(CWnd* pParent /*=nullptr*/)
 	: CBCGPDialog(IDD_LIGHTCONTROLLER_DIALOG, pParent)
 	, m_nCmdMode(0)
 	, m_bAutoFinding(FALSE)
+	, m_nReadState(0)
+	, m_nReadTargetPage(-1)
+	, m_nPageLineCount(0)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -45,6 +48,7 @@ BEGIN_MESSAGE_MAP(CLightControllerDlg, CBCGPDialog)
 	ON_BN_CLICKED(IDC_BTN_SET_SECTION, &CLightControllerDlg::OnBnClickedSetSection)
 	ON_BN_CLICKED(IDC_BTN_SET_SKIP, &CLightControllerDlg::OnBnClickedSetSkip)
 	ON_BN_CLICKED(IDC_BTN_CLEAR_LOG, &CLightControllerDlg::OnBnClickedClearLog)
+	ON_BN_CLICKED(IDC_BTN_DEV_READ_PAGE, &CLightControllerDlg::OnBnClickedDevReadPage)
 	ON_BN_CLICKED(IDC_BTN_APPLY_ALL_ONTIME, &CLightControllerDlg::OnBnClickedApplyAllOntime)
 	ON_BN_CLICKED(IDC_BTN_APPLY_ALL_MUL, &CLightControllerDlg::OnBnClickedApplyAllMul)
 	ON_MESSAGE(WM_SERIAL_RECEIVE, &CLightControllerDlg::OnSerialReceive)
@@ -97,6 +101,9 @@ BOOL CLightControllerDlg::OnInitDialog()
 
 	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_SKIP_TIME))->SetRange32(0, 999);
 	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_SKIP_TIME))->SetPos32(0);
+
+	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_DEV_PAGE))->SetRange32(0, 98);
+	((CSpinButtonCtrl*)GetDlgItem(IDC_SPIN_DEV_PAGE))->SetPos32(0);
 
 	// Initialize 16-channel ON TIME spins and multiplier combos
 	InitChannelControls();
@@ -198,11 +205,14 @@ void CLightControllerDlg::OnBnClickedConnect()
 
 	if (m_serial.Open(strPort, 19200))
 	{
+		m_strConnPort = strPort;
 		CString strMsg;
 		strMsg.Format(_T("연결됨 - %s (19200,8,E,1)"), strPort);
 		SetDlgItemText(IDC_STC_STATUS, strMsg);
 		AddLog(_T("[SYS] ") + strMsg);
 		UpdateUIState();
+		UpdateStatusBar();
+		ReadDeviceParams();
 	}
 	else
 	{
@@ -213,9 +223,13 @@ void CLightControllerDlg::OnBnClickedConnect()
 void CLightControllerDlg::OnBnClickedDisconnect()
 {
 	m_serial.Close();
+	m_strConnPort.Empty();
+	m_strLastReadTime.Empty();
+	m_nReadState = 0;
 	SetDlgItemText(IDC_STC_STATUS, _T("미연결"));
 	AddLog(_T("[SYS] 연결 해제됨"));
 	UpdateUIState();
+	UpdateStatusBar();
 }
 
 void CLightControllerDlg::OnBnClickedRefreshPort()
@@ -295,14 +309,16 @@ DWORD WINAPI CLightControllerDlg::AutoFindThreadProc(LPVOID lpParam)
 		// 로그 전송
 		CString* pLog = new CString;
 		pLog->Format(_T("[SYS] %s 검색 중..."), strPort);
-		::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog);
+		if (!::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog))
+			delete pLog;
 
 		CSerialComm probe;
 		if (!probe.OpenSync(strPort, 19200))
 		{
 			CString* pLog2 = new CString;
 			pLog2->Format(_T("[SYS] %s 열기 실패 (사용 중)"), strPort);
-			::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog2);
+			if (!::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog2))
+				delete pLog2;
 			continue;
 		}
 
@@ -340,20 +356,23 @@ DWORD WINAPI CLightControllerDlg::AutoFindThreadProc(LPVOID lpParam)
 			strFoundPort = strPort;
 			CString* pLog3 = new CString;
 			pLog3->Format(_T("[SYS] %s 에서 IMS-DS-16 장비 발견!"), strPort);
-			::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog3);
+			if (!::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog3))
+				delete pLog3;
 			break;
 		}
 		else
 		{
 			CString* pLog4 = new CString;
 			pLog4->Format(_T("[SYS] %s 응답 없음"), strPort);
-			::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog4);
+			if (!::PostMessage(hWnd, WM_AUTOFIND_LOG, 0, (LPARAM)pLog4))
+				delete pLog4;
 		}
 	}
 
 	// 결과 전달: WPARAM=성공여부, LPARAM=포트이름 문자열
 	CString* pResult = new CString(strFoundPort);
-	::PostMessage(hWnd, WM_AUTOFIND_DONE, strFoundPort.IsEmpty() ? 0 : 1, (LPARAM)pResult);
+	if (!::PostMessage(hWnd, WM_AUTOFIND_DONE, strFoundPort.IsEmpty() ? 0 : 1, (LPARAM)pResult))
+		delete pResult;
 
 	delete pParam;
 	return 0;
@@ -521,9 +540,6 @@ LRESULT CLightControllerDlg::OnSerialReceive(WPARAM wParam, LPARAM lParam)
 	DWORD dwSize = (DWORD)wParam;
 	BYTE* pData = (BYTE*)lParam;
 
-	CString strHex;
-	CString strText;
-
 	for (DWORD i = 0; i < dwSize; i++)
 	{
 		if (CProtocolBuilder::IsACK(pData[i]))
@@ -533,35 +549,35 @@ LRESULT CLightControllerDlg::OnSerialReceive(WPARAM wParam, LPARAM lParam)
 		else if (CProtocolBuilder::IsNAK(pData[i]))
 		{
 			AddLog(_T("[RX] NAK (0x15) - 비정상 수신"));
+			m_nReadState = 0;  // 오류 시 상태 초기화
+		}
+		else if (pData[i] == 0x0A)  // LF → 한 줄 완성
+		{
+			CString strLine = m_strRecvBuffer;
+			strLine.Trim();
+			m_strRecvBuffer.Empty();
+
+			if (!strLine.IsEmpty())
+			{
+				AddLog(_T("[RX] ") + strLine);
+				ProcessReceivedLine(strLine);
+			}
+		}
+		else if (pData[i] == 0x0D)
+		{
+			// CR은 무시 (LF에서 처리)
+		}
+		else if (pData[i] >= 0x20 && pData[i] <= 0x7E)
+		{
+			m_strRecvBuffer += (TCHAR)pData[i];
 		}
 		else
 		{
-			// Printable ASCII
-			if (pData[i] >= 0x20 && pData[i] <= 0x7E)
-			{
-				strText += (TCHAR)pData[i];
-			}
-			else if (pData[i] == 0x0D || pData[i] == 0x0A)
-			{
-				if (!strText.IsEmpty())
-				{
-					AddLog(_T("[RX] ") + strText);
-					strText.Empty();
-				}
-			}
-			else
-			{
-				CString strByte;
-				strByte.Format(_T("0x%02X "), pData[i]);
-				strHex += strByte;
-			}
+			CString strByte;
+			strByte.Format(_T("[RX HEX] 0x%02X"), pData[i]);
+			AddLog(strByte);
 		}
 	}
-
-	if (!strText.IsEmpty())
-		AddLog(_T("[RX] ") + strText);
-	if (!strHex.IsEmpty())
-		AddLog(_T("[RX HEX] ") + strHex);
 
 	delete[] pData;
 	return 0;
@@ -581,6 +597,33 @@ void CLightControllerDlg::AddLog(const CString& strMsg)
 	int nLen = m_edtLog.GetWindowTextLength();
 	m_edtLog.SetSel(nLen, nLen);
 	m_edtLog.ReplaceSel(strLine);
+}
+
+void CLightControllerDlg::OnBnClickedDevReadPage()
+{
+	if (!m_serial.IsOpen())
+	{
+		AfxMessageBox(_T("시리얼 포트가 연결되지 않았습니다."));
+		return;
+	}
+	if (m_nReadState != 0)
+	{
+		AfxMessageBox(_T("이전 읽기가 진행 중입니다."));
+		return;
+	}
+
+	m_nReadTargetPage = GetDlgItemInt(IDC_EDT_DEV_PAGE);
+	m_strRecvBuffer.Empty();
+	m_nPageLineCount = 0;
+	m_nReadState = 4;  // WAITING_PAGE_ONTIME
+
+	CString strLog;
+	strLog.Format(_T("[SYS] Page %d ON TIME 읽기 (:00R)..."), m_nReadTargetPage);
+	AddLog(strLog);
+	UpdateStatusBar();
+
+	// :00R로 전체 페이지 데이터 요청, 응답에서 대상 페이지 라인만 파싱
+	SendCommand(CProtocolBuilder::BuildReadData());
 }
 
 void CLightControllerDlg::OnBnClickedClearLog()
@@ -631,8 +674,11 @@ LRESULT CLightControllerDlg::OnAutoFindDone(WPARAM wParam, LPARAM lParam)
 			CString strMsg;
 			strMsg.Format(_T("연결됨 - %s (19200,8,E,1)"), strPort);
 			SetDlgItemText(IDC_STC_STATUS, strMsg);
+			m_strConnPort = strPort;
 			AddLog(_T("[SYS] 자동 연결 완료: ") + strPort);
 			UpdateUIState();
+			UpdateStatusBar();
+			ReadDeviceParams();
 		}
 	}
 	else
@@ -648,6 +694,37 @@ LRESULT CLightControllerDlg::OnAutoFindDone(WPARAM wParam, LPARAM lParam)
 // UI State
 // ============================================================
 
+void CLightControllerDlg::UpdateStatusBar()
+{
+	CString strStatus;
+
+	if (m_serial.IsOpen())
+	{
+		int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
+		CString strRead = m_strLastReadTime.IsEmpty() ? _T("-") : m_strLastReadTime;
+		CString strState;
+		if (m_nReadState == 1)
+			strState = _T("ON TIME 읽는 중...");
+		else if (m_nReadState == 2)
+			strState = _T("배수 읽는 중...");
+		else if (m_nReadState == 3)
+			strState = _T("페이지 읽는 중...");
+		else if (m_nReadState == 4)
+			strState.Format(_T("Page %d 읽는 중..."), m_nReadTargetPage);
+		else
+			strState = _T("16CH OK");
+
+		strStatus.Format(_T("  ■ 연결: %s  |  Page %d  |  읽기: %s  |  %s"),
+			m_strConnPort, nPage, strRead, strState);
+	}
+	else
+	{
+		strStatus = _T("  □ 미연결");
+	}
+
+	SetDlgItemText(IDC_STC_STATUSBAR, strStatus);
+}
+
 void CLightControllerDlg::UpdateUIState()
 {
 	BOOL bConnected = m_serial.IsOpen();
@@ -661,8 +738,8 @@ void CLightControllerDlg::UpdateUIState()
 	GetDlgItem(IDC_BTN_SEND_ALL)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SEND_MUL)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SAVE_DATA)->EnableWindow(bConnected);
-	GetDlgItem(IDC_BTN_READ_DATA)->EnableWindow(bConnected);
-	GetDlgItem(IDC_BTN_READ_MUL)->EnableWindow(bConnected);
+	//GetDlgItem(IDC_BTN_READ_DATA)->EnableWindow(bConnected);
+	//GetDlgItem(IDC_BTN_READ_MUL)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_TRIGGER)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_RESET)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_GET_PAGE)->EnableWindow(bConnected);
@@ -671,6 +748,147 @@ void CLightControllerDlg::UpdateUIState()
 	GetDlgItem(IDC_BTN_SET_SECTION)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_SET_SKIP)->EnableWindow(bConnected);
 	GetDlgItem(IDC_BTN_AUTO_FIND)->EnableWindow(!bConnected && !m_bAutoFinding);
+}
+
+// ============================================================
+// Device Parameter Read (연결 후 자동 읽기)
+// ============================================================
+
+void CLightControllerDlg::ReadDeviceParams()
+{
+	if (!m_serial.IsOpen())
+		return;
+
+	m_strRecvBuffer.Empty();
+	m_nReadState = 1;  // WAITING_ONTIME
+	AddLog(_T("[SYS] 장비 파라미터 읽기 시작..."));
+	UpdateStatusBar();
+	SendCommand(CProtocolBuilder::BuildReadOntime());   // :1RA\r\n
+}
+
+void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
+{
+	if (m_nReadState == 1)  // WAITING_ONTIME 응답
+	{
+		int arrValue[NUM_CHANNELS] = { 0 };
+		if (CProtocolBuilder::ParseOntimeResponse(strLine, arrValue))
+		{
+			// 입력 UI에 반영
+			for (int i = 0; i < NUM_CHANNELS; i++)
+				SetDlgItemInt(IDC_EDT_ONTIME_BASE + i, arrValue[i]);
+
+			// 장비값 읽기전용 영역에 반영
+			for (int i = 0; i < NUM_CHANNELS; i++)
+			{
+				CString strVal;
+				strVal.Format(_T("%d"), arrValue[i]);
+				SetDlgItemText(IDC_STC_DEV_ONTIME_BASE + i, strVal);
+			}
+
+			AddLog(_T("[SYS] ON TIME 값 읽기 완료"));
+
+			// 다음: 배수 읽기
+			m_nReadState = 2;  // WAITING_MULTIPLIER
+			UpdateStatusBar();
+			SendCommand(CProtocolBuilder::BuildReadMultiplier());  // :1RU\r\n
+		}
+		// 숫자가 아닌 라인은 무시 (헤더 등), 계속 대기
+	}
+	else if (m_nReadState == 2)  // WAITING_MULTIPLIER 응답
+	{
+		int arrMul[NUM_CHANNELS];
+		if (CProtocolBuilder::ParseMultiplierResponse(strLine, arrMul))
+		{
+			// 입력 UI에 반영
+			for (int i = 0; i < NUM_CHANNELS; i++)
+			{
+				CComboBox* pCombo = (CComboBox*)GetDlgItem(IDC_CMB_MUL_BASE + i);
+				if (pCombo)
+				{
+					int nSel = max(0, min(4, arrMul[i] - 1));
+					pCombo->SetCurSel(nSel);
+				}
+			}
+
+			// 장비값 읽기전용 영역에 반영
+			for (int i = 0; i < NUM_CHANNELS; i++)
+			{
+				CString strVal;
+				strVal.Format(_T("x%d"), arrMul[i]);
+				SetDlgItemText(IDC_STC_DEV_MUL_BASE + i, strVal);
+			}
+
+			AddLog(_T("[SYS] 배수 값 읽기 완료"));
+
+			// 다음: 현재 페이지 읽기
+			m_nReadState = 3;  // WAITING_PAGE
+			UpdateStatusBar();
+			SendCommand(CProtocolBuilder::BuildGetCurrentPage());  // :00G\r\n
+		}
+	}
+	else if (m_nReadState == 3)  // WAITING_PAGE 응답
+	{
+		// 응답에서 숫자 추출 (현재 페이지 번호)
+		CString strNum;
+		for (int i = 0; i < strLine.GetLength(); i++)
+		{
+			TCHAR ch = strLine[i];
+			if (ch >= '0' && ch <= '9')
+				strNum += ch;
+		}
+		if (!strNum.IsEmpty())
+		{
+			int nPage = _ttoi(strNum);
+			CString strVal;
+
+			// 현재 Page 표시
+			strVal.Format(_T("%d"), nPage);
+			SetDlgItemText(IDC_STC_DEV_CURPAGE, strVal);
+
+			// Max Page는 편집 UI에서 가져와서 표시 (장비에서 직접 읽는 명령이 없음)
+			int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
+			strVal.Format(_T("%d"), nMaxPage);
+			SetDlgItemText(IDC_STC_DEV_MAXPAGE, strVal);
+
+			AddLog(_T("[SYS] 페이지 정보 읽기 완료"));
+			m_nReadState = 0;  // IDLE
+			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
+			AddLog(_T("[SYS] 장비 파라미터 읽기 완료"));
+			UpdateStatusBar();
+		}
+	}
+	else if (m_nReadState == 4)  // WAITING_PAGE_ONTIME — :00R 응답 (여러 줄)
+	{
+		// :00R 응답은 페이지 0부터 순서대로 한 줄씩 ON TIME 데이터가 옴
+		// 대상 페이지 라인만 파싱하여 장비값 영역에 표시
+		int arrValue[NUM_CHANNELS] = { 0 };
+		if (CProtocolBuilder::ParseOntimeResponse(strLine, arrValue))
+		{
+			if (m_nPageLineCount == m_nReadTargetPage)
+			{
+				// 대상 페이지 → 장비값 영역에 반영
+				for (int i = 0; i < NUM_CHANNELS; i++)
+				{
+					CString strVal;
+					strVal.Format(_T("%d"), arrValue[i]);
+					SetDlgItemText(IDC_STC_DEV_ONTIME_BASE + i, strVal);
+				}
+				// 편집 UI에도 반영
+				for (int i = 0; i < NUM_CHANNELS; i++)
+					SetDlgItemInt(IDC_EDT_ONTIME_BASE + i, arrValue[i]);
+
+				CString strLog;
+				strLog.Format(_T("[SYS] Page %d ON TIME 읽기 완료"), m_nReadTargetPage);
+				AddLog(strLog);
+
+				m_nReadState = 0;  // IDLE
+				m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
+				UpdateStatusBar();
+			}
+			m_nPageLineCount++;
+		}
+	}
+	// m_nReadState == 0 (IDLE) → 일반 데이터, 로그에만 표시
 }
 
 void CLightControllerDlg::OnDestroy()
