@@ -413,6 +413,10 @@ void CLightControllerDlg::OnBnClickedSendAll()
 		int nPage = GetDlgItemInt(IDC_EDT_CURPAGE);
 		int nRepeat = GetDlgItemInt(IDC_EDT_REPEAT);
 		strCmd = CProtocolBuilder::BuildSetOnTime(nMaxPage, nPage, nRepeat, arrValue);
+
+		CString strVal;
+		strVal.Format(_T("%d"), nMaxPage);
+		SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
 	}
 	else  // LS-12
 	{
@@ -477,12 +481,18 @@ void CLightControllerDlg::OnBnClickedSetStartPage()
 {
 	int nPage = GetDlgItemInt(IDC_EDT_START_PAGE);
 	SendCommand(CProtocolBuilder::BuildSetStartPage(nPage));
+
+	CString strVal;
+	strVal.Format(_T("%d"), nPage);
+	SetDlgItemText(IDC_STC_NQ_START_PAGE, strVal);
 }
 
 void CLightControllerDlg::OnBnClickedSetHold()
 {
 	BOOL bHold = ((CButton*)GetDlgItem(IDC_CHK_HOLD))->GetCheck() == BST_CHECKED;
 	SendCommand(CProtocolBuilder::BuildSetPageHold(bHold));
+
+	SetDlgItemText(IDC_STC_NQ_HOLD, bHold ? _T("ON") : _T("OFF"));
 }
 
 void CLightControllerDlg::OnBnClickedSetSection()
@@ -494,6 +504,11 @@ void CLightControllerDlg::OnBnClickedSetSection()
 	int nEnd = GetDlgItemInt(IDC_EDT_SECTION_END);
 	SendCommand(CProtocolBuilder::BuildSetSectionStartPage(nStart));
 	SendCommand(CProtocolBuilder::BuildSetSectionEndPage(nEnd));
+
+	SetDlgItemText(IDC_STC_NQ_SECTION, bSection ? _T("ON") : _T("OFF"));
+	CString strRange;
+	strRange.Format(_T("%d ~ %d"), nStart, nEnd);
+	SetDlgItemText(IDC_STC_NQ_SECTION_RANGE, strRange);
 }
 
 void CLightControllerDlg::OnBnClickedSetSkip()
@@ -503,6 +518,11 @@ void CLightControllerDlg::OnBnClickedSetSkip()
 
 	int nTime = GetDlgItemInt(IDC_EDT_SKIP_TIME);
 	SendCommand(CProtocolBuilder::BuildSetSkipTime(nTime));
+
+	SetDlgItemText(IDC_STC_NQ_SKIP, bSkip ? _T("ON") : _T("OFF"));
+	CString strTime;
+	strTime.Format(_T("%d ms"), nTime);
+	SetDlgItemText(IDC_STC_NQ_SKIP_TIME, strTime);
 }
 
 // ============================================================
@@ -845,10 +865,10 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 			strVal.Format(_T("%d"), nPage);
 			SetDlgItemText(IDC_STC_DEV_CURPAGE, strVal);
 
-			// Max Page는 편집 UI에서 가져와서 표시 (장비에서 직접 읽는 명령이 없음)
+			// Max Page → 조회불가 영역에 표시
 			int nMaxPage = GetDlgItemInt(IDC_EDT_MAXPAGE);
 			strVal.Format(_T("%d"), nMaxPage);
-			SetDlgItemText(IDC_STC_DEV_MAXPAGE, strVal);
+			SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
 
 			AddLog(_T("[SYS] 페이지 정보 읽기 완료"));
 			m_nReadState = 0;  // IDLE

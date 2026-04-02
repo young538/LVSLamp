@@ -47,13 +47,15 @@ END
 
 IDR_MAINFRAME           ICON                    "res\\LightController.ico"
 
-IDD_LIGHTCONTROLLER_DIALOG DIALOGEX 0, 0, 750, 510
+IDD_LIGHTCONTROLLER_DIALOG DIALOGEX 0, 0, 760, 530
 STYLE DS_SETFONT | DS_FIXEDSYS | WS_MINIMIZEBOX | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 CAPTION "IMS-DS-16 조명 컨트롤러"
 FONT 9, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    // === 시리얼 포트 ===
-    GROUPBOX        "시리얼 포트",IDC_STATIC,7,4,736,30
+    // ================================================================
+    // 시리얼 포트
+    // ================================================================
+    GROUPBOX        "시리얼 포트",IDC_STATIC,7,4,746,30
     LTEXT           "COM:",IDC_STATIC,15,17,18,8
     COMBOBOX        IDC_CMB_PORT,35,15,65,200,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "연결",IDC_BTN_CONNECT,108,14,35,14
@@ -62,8 +64,12 @@ BEGIN
     PUSHBUTTON      "자동찾기",IDC_BTN_AUTO_FIND,228,14,40,14
     LTEXT           "미연결",IDC_STC_STATUS,278,17,200,8
 
+    // ================================================================
+    // 왼쪽: 제어 영역
+    // ================================================================
+
     // === ON TIME 설정 (페이지별) ===
-    GROUPBOX        "ON TIME 설정 (페이지별)",IDC_STATIC,7,38,420,175
+    GROUPBOX        "ON TIME 설정 (페이지별)",IDC_STATIC,7,38,370,178
     CONTROL         "DS-16 확장",IDC_RADIO_DS16,"Button",BS_AUTORADIOBUTTON | WS_GROUP,15,51,55,10
     CONTROL         "LS-12 호환",IDC_RADIO_LS12,"Button",BS_AUTORADIOBUTTON,75,51,55,10
     LTEXT           "Max Page:",IDC_STATIC,145,53,38,8
@@ -135,11 +141,11 @@ BEGIN
     EDITTEXT        1116,258,77,45,13,ES_AUTOHSCROLL | ES_NUMBER
     PUSHBUTTON      "일괄적용",1400,310,77,50,14
 
-    PUSHBUTTON      "전체 전송",IDC_BTN_SEND_ALL,15,196,70,14
-    PUSHBUTTON      "데이터 저장",IDC_BTN_SAVE_DATA,90,196,70,14
+    PUSHBUTTON      "전체 전송",IDC_BTN_SEND_ALL,15,198,70,14
+    PUSHBUTTON      "데이터 저장",IDC_BTN_SAVE_DATA,90,198,70,14
 
     // === 배수 설정 (전 페이지 공통) ===
-    GROUPBOX        "배수 설정 (전 페이지 공통)",IDC_STATIC,7,216,420,80
+    GROUPBOX        "배수 설정 (전 페이지 공통)",IDC_STATIC,7,218,370,75
 
     LTEXT           "01:",IDC_STATIC,16,230,12,8
     COMBOBOX        1300,30,228,30,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
@@ -182,130 +188,155 @@ BEGIN
     PUSHBUTTON      "일괄적용",1401,322,228,50,14
     PUSHBUTTON      "배수 설정",IDC_BTN_SEND_MUL,250,248,70,14
 
-    // === 장비값: ON TIME (페이지별, 읽기전용) ===
-    GROUPBOX        "장비 ON TIME (페이지별)",IDC_STATIC,432,38,311,168
+    // ================================================================
+    // 오른쪽: 장비 정보 영역
+    // ================================================================
 
-    LTEXT           "CH",IDC_STATIC,442,52,12,8
-    LTEXT           "ON TIME(us)",IDC_STATIC,457,52,42,8
-    RTEXT           "01",IDC_STATIC,440,64,10,8
-    RTEXT           "---",1500,455,64,35,8
-    RTEXT           "02",IDC_STATIC,440,76,10,8
-    RTEXT           "---",1501,455,76,35,8
-    RTEXT           "03",IDC_STATIC,440,88,10,8
-    RTEXT           "---",1502,455,88,35,8
-    RTEXT           "04",IDC_STATIC,440,100,10,8
-    RTEXT           "---",1503,455,100,35,8
-    RTEXT           "05",IDC_STATIC,440,112,10,8
-    RTEXT           "---",1504,455,112,35,8
-    RTEXT           "06",IDC_STATIC,440,124,10,8
-    RTEXT           "---",1505,455,124,35,8
-    RTEXT           "07",IDC_STATIC,440,136,10,8
-    RTEXT           "---",1506,455,136,35,8
-    RTEXT           "08",IDC_STATIC,440,148,10,8
-    RTEXT           "---",1507,455,148,35,8
+    // === 조회 가능: ON TIME (페이지별) ===
+    GROUPBOX        "장비 ON TIME (페이지별)",IDC_STATIC,382,38,371,168
 
-    LTEXT           "CH",IDC_STATIC,520,52,12,8
-    LTEXT           "ON TIME(us)",IDC_STATIC,535,52,42,8
-    RTEXT           "09",IDC_STATIC,518,64,10,8
-    RTEXT           "---",1508,533,64,35,8
-    RTEXT           "10",IDC_STATIC,518,76,10,8
-    RTEXT           "---",1509,533,76,35,8
-    RTEXT           "11",IDC_STATIC,518,88,10,8
-    RTEXT           "---",1510,533,88,35,8
-    RTEXT           "12",IDC_STATIC,518,100,10,8
-    RTEXT           "---",1511,533,100,35,8
-    RTEXT           "13",IDC_STATIC,518,112,10,8
-    RTEXT           "---",1512,533,112,35,8
-    RTEXT           "14",IDC_STATIC,518,124,10,8
-    RTEXT           "---",1513,533,124,35,8
-    RTEXT           "15",IDC_STATIC,518,136,10,8
-    RTEXT           "---",1514,533,136,35,8
-    RTEXT           "16",IDC_STATIC,518,148,10,8
-    RTEXT           "---",1515,533,148,35,8
+    LTEXT           "CH",IDC_STATIC,392,52,12,8
+    LTEXT           "ON TIME(us)",IDC_STATIC,407,52,42,8
+    RTEXT           "01",IDC_STATIC,390,64,10,8
+    RTEXT           "---",1500,405,64,35,8
+    RTEXT           "02",IDC_STATIC,390,76,10,8
+    RTEXT           "---",1501,405,76,35,8
+    RTEXT           "03",IDC_STATIC,390,88,10,8
+    RTEXT           "---",1502,405,88,35,8
+    RTEXT           "04",IDC_STATIC,390,100,10,8
+    RTEXT           "---",1503,405,100,35,8
+    RTEXT           "05",IDC_STATIC,390,112,10,8
+    RTEXT           "---",1504,405,112,35,8
+    RTEXT           "06",IDC_STATIC,390,124,10,8
+    RTEXT           "---",1505,405,124,35,8
+    RTEXT           "07",IDC_STATIC,390,136,10,8
+    RTEXT           "---",1506,405,136,35,8
+    RTEXT           "08",IDC_STATIC,390,148,10,8
+    RTEXT           "---",1507,405,148,35,8
 
-    LTEXT           "Max Page:",IDC_STATIC,590,64,38,8
-    RTEXT           "--",IDC_STC_DEV_MAXPAGE,632,64,20,8
-    LTEXT           "Cur Page:",IDC_STATIC,590,78,35,8
-    RTEXT           "--",IDC_STC_DEV_CURPAGE,632,78,20,8
-    LTEXT           "조회 Page:",IDC_STC_DEV_PAGE_LABEL,590,96,40,8
-    EDITTEXT        IDC_EDT_DEV_PAGE,635,94,20,14,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "",IDC_SPIN_DEV_PAGE,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,645,94,11,14
-    PUSHBUTTON      "읽기",IDC_BTN_DEV_READ_PAGE,660,94,35,14
+    LTEXT           "CH",IDC_STATIC,465,52,12,8
+    LTEXT           "ON TIME(us)",IDC_STATIC,480,52,42,8
+    RTEXT           "09",IDC_STATIC,463,64,10,8
+    RTEXT           "---",1508,478,64,35,8
+    RTEXT           "10",IDC_STATIC,463,76,10,8
+    RTEXT           "---",1509,478,76,35,8
+    RTEXT           "11",IDC_STATIC,463,88,10,8
+    RTEXT           "---",1510,478,88,35,8
+    RTEXT           "12",IDC_STATIC,463,100,10,8
+    RTEXT           "---",1511,478,100,35,8
+    RTEXT           "13",IDC_STATIC,463,112,10,8
+    RTEXT           "---",1512,478,112,35,8
+    RTEXT           "14",IDC_STATIC,463,124,10,8
+    RTEXT           "---",1513,478,124,35,8
+    RTEXT           "15",IDC_STATIC,463,136,10,8
+    RTEXT           "---",1514,478,136,35,8
+    RTEXT           "16",IDC_STATIC,463,148,10,8
+    RTEXT           "---",1515,478,148,35,8
 
-    // === 장비값: 채널별 배수 (전 페이지 공통, 읽기전용) ===
-    GROUPBOX        "장비 배수 (전 페이지 공통)",IDC_STATIC,432,208,311,70
+    LTEXT           "Cur Page:",IDC_STATIC,540,52,35,8
+    RTEXT           "--",IDC_STC_DEV_CURPAGE,580,52,20,8
 
-    LTEXT           "01:",IDC_STATIC,442,220,12,8
-    RTEXT           "-",1520,456,220,10,8
-    LTEXT           "02:",IDC_STATIC,442,230,12,8
-    RTEXT           "-",1521,456,230,10,8
-    LTEXT           "03:",IDC_STATIC,442,240,12,8
-    RTEXT           "-",1522,456,240,10,8
-    LTEXT           "04:",IDC_STATIC,442,250,12,8
-    RTEXT           "-",1523,456,250,10,8
+    LTEXT           "조회 Page:",IDC_STC_DEV_PAGE_LABEL,540,68,40,8
+    EDITTEXT        IDC_EDT_DEV_PAGE,585,66,20,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_DEV_PAGE,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,595,66,11,14
+    PUSHBUTTON      "읽기",IDC_BTN_DEV_READ_PAGE,612,66,35,14
 
-    LTEXT           "05:",IDC_STATIC,482,220,12,8
-    RTEXT           "-",1524,496,220,10,8
-    LTEXT           "06:",IDC_STATIC,482,230,12,8
-    RTEXT           "-",1525,496,230,10,8
-    LTEXT           "07:",IDC_STATIC,482,240,12,8
-    RTEXT           "-",1526,496,240,10,8
-    LTEXT           "08:",IDC_STATIC,482,250,12,8
-    RTEXT           "-",1527,496,250,10,8
+    // === 조회 가능: 채널별 배수 ===
+    GROUPBOX        "장비 배수 (전 페이지 공통)",IDC_STATIC,382,208,371,60
 
-    LTEXT           "09:",IDC_STATIC,522,220,12,8
-    RTEXT           "-",1528,536,220,10,8
-    LTEXT           "10:",IDC_STATIC,522,230,12,8
-    RTEXT           "-",1529,536,230,10,8
-    LTEXT           "11:",IDC_STATIC,522,240,12,8
-    RTEXT           "-",1530,536,240,10,8
-    LTEXT           "12:",IDC_STATIC,522,250,12,8
-    RTEXT           "-",1531,536,250,10,8
+    LTEXT           "01:",IDC_STATIC,392,222,12,8
+    RTEXT           "-",1520,406,222,12,8
+    LTEXT           "02:",IDC_STATIC,392,234,12,8
+    RTEXT           "-",1521,406,234,12,8
+    LTEXT           "03:",IDC_STATIC,392,246,12,8
+    RTEXT           "-",1522,406,246,12,8
+    LTEXT           "04:",IDC_STATIC,392,258,12,8
+    RTEXT           "-",1523,406,258,12,8
 
-    LTEXT           "13:",IDC_STATIC,562,220,12,8
-    RTEXT           "-",1532,576,220,10,8
-    LTEXT           "14:",IDC_STATIC,562,230,12,8
-    RTEXT           "-",1533,576,230,10,8
-    LTEXT           "15:",IDC_STATIC,562,240,12,8
-    RTEXT           "-",1534,576,240,10,8
-    LTEXT           "16:",IDC_STATIC,562,250,12,8
-    RTEXT           "-",1535,576,250,10,8
+    LTEXT           "05:",IDC_STATIC,430,222,12,8
+    RTEXT           "-",1524,444,222,12,8
+    LTEXT           "06:",IDC_STATIC,430,234,12,8
+    RTEXT           "-",1525,444,234,12,8
+    LTEXT           "07:",IDC_STATIC,430,246,12,8
+    RTEXT           "-",1526,444,246,12,8
+    LTEXT           "08:",IDC_STATIC,430,258,12,8
+    RTEXT           "-",1527,444,258,12,8
+
+    LTEXT           "09:",IDC_STATIC,468,222,12,8
+    RTEXT           "-",1528,482,222,12,8
+    LTEXT           "10:",IDC_STATIC,468,234,12,8
+    RTEXT           "-",1529,482,234,12,8
+    LTEXT           "11:",IDC_STATIC,468,246,12,8
+    RTEXT           "-",1530,482,246,12,8
+    LTEXT           "12:",IDC_STATIC,468,258,12,8
+    RTEXT           "-",1531,482,258,12,8
+
+    LTEXT           "13:",IDC_STATIC,506,222,12,8
+    RTEXT           "-",1532,520,222,12,8
+    LTEXT           "14:",IDC_STATIC,506,234,12,8
+    RTEXT           "-",1533,520,234,12,8
+    LTEXT           "15:",IDC_STATIC,506,246,12,8
+    RTEXT           "-",1534,520,246,12,8
+    LTEXT           "16:",IDC_STATIC,506,258,12,8
+    RTEXT           "-",1535,520,258,12,8
+
+    // === 조회 불가: 마지막 전송값 ===
+    GROUPBOX        "설정 상태 (마지막 전송값)",IDC_STATIC,382,272,371,110
+
+    LTEXT           "Max Page:",IDC_STATIC,392,286,38,8
+    RTEXT           "--",IDC_STC_NQ_MAXPAGE,435,286,25,8
+    LTEXT           "시작 Page:",IDC_STATIC,392,298,40,8
+    RTEXT           "--",IDC_STC_NQ_START_PAGE,435,298,25,8
+    LTEXT           "HOLD:",IDC_STATIC,392,310,22,8
+    RTEXT           "--",IDC_STC_NQ_HOLD,435,310,25,8
+
+    LTEXT           "Section:",IDC_STATIC,490,286,30,8
+    RTEXT           "--",IDC_STC_NQ_SECTION,525,286,25,8
+    LTEXT           "범위:",IDC_STATIC,490,298,20,8
+    RTEXT           "-- ~ --",IDC_STC_NQ_SECTION_RANGE,515,298,40,8
+
+    LTEXT           "Skip:",IDC_STATIC,590,286,20,8
+    RTEXT           "--",IDC_STC_NQ_SKIP,615,286,25,8
+    LTEXT           "Skip Time:",IDC_STATIC,590,298,38,8
+    RTEXT           "-- ms",IDC_STC_NQ_SKIP_TIME,632,298,30,8
 
     // === 순차 페이지 제어 ===
-    GROUPBOX        "순차 페이지 제어",IDC_STATIC,7,303,420,55
-    PUSHBUTTON      "트리거",IDC_BTN_TRIGGER,15,316,38,14
-    PUSHBUTTON      "리셋",IDC_BTN_RESET,58,316,30,14
-    PUSHBUTTON      "현재페이지",IDC_BTN_GET_PAGE,93,316,55,14
-    LTEXT           "시작Page:",IDC_STATIC,155,318,38,8
-    EDITTEXT        IDC_EDT_START_PAGE,198,316,20,14,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "",IDC_SPIN_START_PAGE,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,208,316,11,14
-    PUSHBUTTON      "설정",IDC_BTN_SET_START_PAGE,226,316,25,14
-    CONTROL         "HOLD",IDC_CHK_HOLD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,258,318,35,10
-    PUSHBUTTON      "설정",1135,298,316,25,14
-    CONTROL         "Section",IDC_CHK_SECTION,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,339,40,10
-    LTEXT           "시작:",IDC_STATIC,60,341,18,8
-    EDITTEXT        IDC_EDT_SECTION_START,80,339,20,14,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "",IDC_SPIN_SECTION_START,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,90,339,11,14
-    LTEXT           "끝:",IDC_STATIC,108,341,12,8
-    EDITTEXT        IDC_EDT_SECTION_END,122,339,20,14,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "",IDC_SPIN_SECTION_END,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,132,339,11,14
-    PUSHBUTTON      "설정",IDC_BTN_SET_SECTION,150,339,25,14
+    GROUPBOX        "순차 페이지 제어",IDC_STATIC,7,296,370,55
+    PUSHBUTTON      "트리거",IDC_BTN_TRIGGER,15,309,38,14
+    PUSHBUTTON      "리셋",IDC_BTN_RESET,58,309,30,14
+    PUSHBUTTON      "현재페이지",IDC_BTN_GET_PAGE,93,309,55,14
+    LTEXT           "시작Page:",IDC_STATIC,155,311,38,8
+    EDITTEXT        IDC_EDT_START_PAGE,198,309,20,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_START_PAGE,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,208,309,11,14
+    PUSHBUTTON      "설정",IDC_BTN_SET_START_PAGE,226,309,25,14
+    CONTROL         "HOLD",IDC_CHK_HOLD,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,258,311,35,10
+    PUSHBUTTON      "설정",1135,298,309,25,14
+    CONTROL         "Section",IDC_CHK_SECTION,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,332,40,10
+    LTEXT           "시작:",IDC_STATIC,60,334,18,8
+    EDITTEXT        IDC_EDT_SECTION_START,80,332,20,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_SECTION_START,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,90,332,11,14
+    LTEXT           "끝:",IDC_STATIC,108,334,12,8
+    EDITTEXT        IDC_EDT_SECTION_END,122,332,20,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_SECTION_END,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,132,332,11,14
+    PUSHBUTTON      "설정",IDC_BTN_SET_SECTION,150,332,25,14
 
     // === 트리거 Skip ===
-    GROUPBOX        "트리거 Skip",IDC_STATIC,432,303,311,55
-    CONTROL         "Skip",IDC_CHK_SKIP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,442,318,30,10
-    LTEXT           "Time:",IDC_STATIC,480,318,22,8
-    EDITTEXT        IDC_EDT_SKIP_TIME,505,316,30,14,ES_AUTOHSCROLL | ES_NUMBER
-    CONTROL         "",IDC_SPIN_SKIP_TIME,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,525,316,11,14
-    LTEXT           "ms",IDC_STATIC,543,318,10,8
-    PUSHBUTTON      "설정",IDC_BTN_SET_SKIP,560,316,30,14
+    GROUPBOX        "트리거 Skip",IDC_STATIC,7,354,370,28
+    CONTROL         "Skip",IDC_CHK_SKIP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,15,365,30,10
+    LTEXT           "Time:",IDC_STATIC,50,365,22,8
+    EDITTEXT        IDC_EDT_SKIP_TIME,75,363,30,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "",IDC_SPIN_SKIP_TIME,"msctls_updown32",UDS_SETBUDDYINT | UDS_ALIGNRIGHT | UDS_AUTOBUDDY | UDS_ARROWKEYS,95,363,11,14
+    LTEXT           "ms",IDC_STATIC,113,365,10,8
+    PUSHBUTTON      "설정",IDC_BTN_SET_SKIP,130,363,30,14
 
-    // === 통신 로그 ===
-    GROUPBOX        "통신 로그",IDC_STATIC,7,362,736,128
-    EDITTEXT        IDC_EDT_LOG,15,374,720,100,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
-    PUSHBUTTON      "지우기",IDC_BTN_CLEAR_LOG,690,476,45,12
+    // ================================================================
+    // 하단: 통신 로그 + 상태바
+    // ================================================================
+    GROUPBOX        "통신 로그",IDC_STATIC,7,386,746,120
+    EDITTEXT        IDC_EDT_LOG,15,398,730,93,ES_MULTILINE | ES_AUTOVSCROLL | ES_AUTOHSCROLL | ES_READONLY | WS_VSCROLL | WS_HSCROLL
+    PUSHBUTTON      "지우기",IDC_BTN_CLEAR_LOG,700,493,45,12
 
-    LTEXT           "미연결",IDC_STC_STATUSBAR,7,495,736,10,SS_SUNKEN
+    LTEXT           "미연결",IDC_STC_STATUSBAR,7,512,746,10,SS_SUNKEN
 END
 
 #endif

@@ -72,8 +72,14 @@
 #define IDC_SPIN_DEV_PAGE               1543
 #define IDC_BTN_DEV_READ_PAGE           1544
 #define IDC_STC_DEV_PAGE_LABEL          1545
-#define IDC_STC_DEV_SKIP_STATUS         1546
-#define IDC_STC_DEV_SKIP_TIME           1547
+// Device Non-Queryable Values (설정 전송 시 반영)
+#define IDC_STC_NQ_MAXPAGE              1550
+#define IDC_STC_NQ_START_PAGE           1551
+#define IDC_STC_NQ_HOLD                 1552
+#define IDC_STC_NQ_SECTION              1553
+#define IDC_STC_NQ_SECTION_RANGE        1554
+#define IDC_STC_NQ_SKIP                 1555
+#define IDC_STC_NQ_SKIP_TIME            1556
 
 // Next default values for new objects
 #ifdef APSTUDIO_INVOKED
