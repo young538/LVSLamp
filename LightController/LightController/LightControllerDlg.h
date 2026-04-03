@@ -30,6 +30,16 @@ private:
 	// Log
 	CEdit m_edtLog;
 
+	// 타이머 설정
+	enum TimerID
+	{
+		TIMER_RECV_COMPLETE = 100,   // :00R 다중 라인 수신 완료 감지
+		TIMER_MULTIPLIER    = 101,   // :1RU 응답 버퍼 강제 파싱
+		TIMER_CUR_PAGE      = 102,   // :00G 응답 버퍼 강제 파싱
+	};
+	static const UINT TIMEOUT_RECV_COMPLETE = 300;   // ms
+	static const UINT TIMEOUT_FLUSH_BUFFER  = 500;   // ms
+
 	// 읽기 상태
 	enum ReadState
 	{

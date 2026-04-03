@@ -684,7 +684,7 @@ void CLightControllerDlg::OnBnClickedGetCurPage()
 	AddLog(_T("[SYS] 현재 페이지 조회..."));
 	UpdateStatusBar();
 	SendCommand(CProtocolBuilder::BuildGetCurrentPage());  // :00G\r\n
-	SetTimer(102, 500, NULL);  // 500ms 후 버퍼 강제 처리
+	SetTimer(TIMER_CUR_PAGE, TIMEOUT_FLUSH_BUFFER, NULL);  // 500ms 후 버퍼 강제 처리
 }
 
 void CLightControllerDlg::OnBnClickedDevReadMul()
@@ -706,7 +706,7 @@ void CLightControllerDlg::OnBnClickedDevReadMul()
 	AddLog(_T("[SYS] 배수 값 읽기..."));
 	UpdateStatusBar();
 	SendCommand(CProtocolBuilder::BuildReadMultiplier());
-	SetTimer(101, 500, NULL);  // 500ms 후 버퍼 강제 처리
+	SetTimer(TIMER_MULTIPLIER, TIMEOUT_FLUSH_BUFFER, NULL);  // 500ms 후 버퍼 강제 처리
 }
 
 void CLightControllerDlg::OnBnClickedClearLog()
@@ -928,7 +928,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 				strVal.Format(_T("%d"), nMaxPage);
 				SetDlgItemText(IDC_STC_NQ_MAXPAGE, strVal);
 			}
-			SetTimer(100, 300, NULL);
+			SetTimer(TIMER_RECV_COMPLETE, TIMEOUT_RECV_COMPLETE, NULL);
 			return;
 		}
 
@@ -956,7 +956,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 				SetDlgItemText(IDC_STC_DEV_REPEAT, strRepeat);
 			}
 			m_nPageLineCount = nPage;
-			SetTimer(100, 300, NULL);
+			SetTimer(TIMER_RECV_COMPLETE, TIMEOUT_RECV_COMPLETE, NULL);
 			return;
 		}
 
@@ -969,7 +969,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 			else
 				strVal = _T("OFF");
 			SetDlgItemText(IDC_STC_NQ_SECTION, strVal);
-			SetTimer(100, 300, NULL);
+			SetTimer(TIMER_RECV_COMPLETE, TIMEOUT_RECV_COMPLETE, NULL);
 			return;
 		}
 
@@ -983,7 +983,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 				strRange.Trim();
 				SetDlgItemText(IDC_STC_NQ_SECTION_RANGE, strRange);
 			}
-			SetTimer(100, 300, NULL);
+			SetTimer(TIMER_RECV_COMPLETE, TIMEOUT_RECV_COMPLETE, NULL);
 			return;
 		}
 
@@ -1010,7 +1010,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 				SetDlgItemText(IDC_STC_DEV_MUL_BASE + i, strVal);
 			}
 
-			KillTimer(101);
+			KillTimer(TIMER_MULTIPLIER);
 			AddLog(_T("[SYS] 배수 값 읽기 완료"));
 			m_nReadState = READ_IDLE;
 			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
@@ -1033,7 +1033,7 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 			strVal.Format(_T("%d"), nPage);
 			SetDlgItemText(IDC_STC_DEV_CURPAGE, strVal);
 
-			KillTimer(102);
+			KillTimer(TIMER_CUR_PAGE);
 			AddLog(_T("[SYS] 현재 페이지 조회 완료"));
 			m_nReadState = READ_IDLE;
 			m_strLastReadTime = CTime::GetCurrentTime().Format(_T("%H:%M:%S"));
@@ -1046,10 +1046,10 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 		int arrValue[NUM_CHANNELS] = { 0 };
 		if (Parse00RPageLine(strLine, nPage, arrValue, nRepeat))
 		{
-			SetTimer(100, 300, NULL);
+			SetTimer(TIMER_RECV_COMPLETE, TIMEOUT_RECV_COMPLETE, NULL);
 			if (nPage == m_nReadTargetPage)
 			{
-				KillTimer(100);
+				KillTimer(TIMER_RECV_COMPLETE);
 				for (int i = 0; i < NUM_CHANNELS; i++)
 				{
 					CString strVal;
@@ -1083,10 +1083,10 @@ void CLightControllerDlg::ProcessReceivedLine(const CString& strLine)
 
 void CLightControllerDlg::OnTimer(UINT_PTR nIDEvent)
 {
-	if (nIDEvent == 100 && m_nReadState == READ_DEVICE_DATA)
+	if (nIDEvent == TIMER_RECV_COMPLETE && m_nReadState == READ_DEVICE_DATA)
 	{
 		// :00R 응답 수신 완료 → 다음: 배수 읽기
-		KillTimer(100);
+		KillTimer(TIMER_RECV_COMPLETE);
 		AddLog(_T("[SYS] 조명컨트롤 데이터 읽기 완료"));
 
 		if (!m_strRecvBuffer.IsEmpty())
@@ -1098,12 +1098,12 @@ void CLightControllerDlg::OnTimer(UINT_PTR nIDEvent)
 		m_nPageLineCount = 0;
 		UpdateStatusBar();
 		SendCommand(CProtocolBuilder::BuildReadMultiplier());  // :1RU\r\n
-		SetTimer(101, 500, NULL);  // 500ms 후 버퍼 강제 처리
+		SetTimer(TIMER_MULTIPLIER, TIMEOUT_FLUSH_BUFFER, NULL);  // 500ms 후 버퍼 강제 처리
 	}
-	else if (nIDEvent == 101 && m_nReadState == READ_MULTIPLIER)
+	else if (nIDEvent == TIMER_MULTIPLIER && m_nReadState == READ_MULTIPLIER)
 	{
 		// :1RU 응답이 CRLF 없이 올 수 있음 → 버퍼 강제 파싱
-		KillTimer(101);
+		KillTimer(TIMER_MULTIPLIER);
 		CString strLine = m_strRecvBuffer;
 		strLine.Trim();
 		m_strRecvBuffer.Empty();
@@ -1124,10 +1124,10 @@ void CLightControllerDlg::OnTimer(UINT_PTR nIDEvent)
 			UpdateStatusBar();
 		}
 	}
-	else if (nIDEvent == 102 && m_nReadState == READ_CUR_PAGE)
+	else if (nIDEvent == TIMER_CUR_PAGE && m_nReadState == READ_CUR_PAGE)
 	{
 		// :00G 응답이 CRLF 없이 올 수 있음 → 버퍼 강제 파싱
-		KillTimer(102);
+		KillTimer(TIMER_CUR_PAGE);
 		CString strLine = m_strRecvBuffer;
 		strLine.Trim();
 		m_strRecvBuffer.Empty();
@@ -1145,9 +1145,9 @@ void CLightControllerDlg::OnTimer(UINT_PTR nIDEvent)
 			UpdateStatusBar();
 		}
 	}
-	else if (nIDEvent == 100 && m_nReadState == READ_PAGE_ONTIME)
+	else if (nIDEvent == TIMER_RECV_COMPLETE && m_nReadState == READ_PAGE_ONTIME)
 	{
-		KillTimer(100);
+		KillTimer(TIMER_RECV_COMPLETE);
 		AddLog(_T("[SYS] 대상 페이지를 찾지 못했습니다."));
 		m_nReadState = READ_IDLE;
 		UpdateStatusBar();
